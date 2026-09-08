@@ -1,0 +1,70 @@
+--- kernel-src/hid-nintendo-6.18.c	2026-09-06 13:59:02
++++ module/hid-nintendo.c	2026-09-07 09:24:22
+@@ -542,7 +542,13 @@
+ #define JC_MAX_RESP_SIZE	(sizeof(struct joycon_input_report) + 35)
+ #define JC_RUMBLE_DATA_SIZE	8
+ #define JC_RUMBLE_QUEUE_SIZE	8
++
++/* neutral rumble ("off") as sent by the console: freq 160/320 Hz, amp 0 */
++static const u8 joycon_rumble_neutral[JC_RUMBLE_DATA_SIZE] = {
++	0x00, 0x01, 0x40, 0x40, 0x00, 0x01, 0x40, 0x40
++};
+ 
++
+ static const char * const joycon_player_led_names[] = {
+ 	LED_FUNCTION_PLAYER1,
+ 	LED_FUNCTION_PLAYER2,
+@@ -773,13 +779,26 @@
+ 
+ static int __joycon_hid_send(struct hid_device *hdev, u8 *data, size_t len)
+ {
++	struct hid_report *report;
++	size_t send_len = len;
+ 	u8 *buf;
+ 	int ret;
+ 
+-	buf = kmemdup(data, len, GFP_KERNEL);
++	/*
++	 * Some third-party controllers ignore output reports that are shorter
++	 * than the size declared in their report descriptor (the console always
++	 * sends full-size reports). Zero-pad to the declared size; genuine
++	 * controllers accept both.
++	 */
++	report = hdev->report_enum[HID_OUTPUT_REPORT].report_id_hash[data[0]];
++	if (report)
++		send_len = max_t(size_t, len, hid_report_len(report));
++
++	buf = kzalloc(send_len, GFP_KERNEL);
+ 	if (!buf)
+ 		return -ENOMEM;
+-	ret = hid_hw_output_report(hdev, buf, len);
++	memcpy(buf, data, len);
++	ret = hid_hw_output_report(hdev, buf, send_len);
+ 	kfree(buf);
+ 	if (ret < 0)
+ 		hid_dbg(hdev, "Failed to send output report ret=%d\n", ret);
+@@ -2629,6 +2648,7 @@
+ 			    const struct hid_device_id *id)
+ {
+ 	int ret;
++	int i;
+ 	struct joycon_ctlr *ctlr;
+ 
+ 	hid_dbg(hdev, "probe - start\n");
+@@ -2643,6 +2663,16 @@
+ 	ctlr->ctlr_state = JOYCON_CTLR_STATE_INIT;
+ 	ctlr->rumble_queue_head = 0;
+ 	ctlr->rumble_queue_tail = 0;
++	/*
++	 * Every subcommand carries rumble data. Some third-party controllers
++	 * discard subcommands whose rumble bytes are not a valid encoding (all
++	 * zeros is not), so preload the neutral "rumble off" pattern instead of
++	 * leaving the queue zeroed until the first joycon_set_rumble() call,
++	 * which also never happens when CONFIG_NINTENDO_FF is disabled.
++	 */
++	for (i = 0; i < JC_RUMBLE_QUEUE_SIZE; i++)
++		memcpy(ctlr->rumble_data[i], joycon_rumble_neutral,
++		       JC_RUMBLE_DATA_SIZE);
+ 	hid_set_drvdata(hdev, ctlr);
+ 	mutex_init(&ctlr->output_mutex);
+ 	init_waitqueue_head(&ctlr->wait);
