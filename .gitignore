@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.tgz
+*.ko
+*.o
+*.mod*
+.*.cmd
+Module.symvers
+modules.order
+# GitHub API dumps used while reading upstream history
+kernel-src/commit*.json
