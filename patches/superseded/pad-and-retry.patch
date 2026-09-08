@@ -1,0 +1,68 @@
+--- kernel-src/hid-nintendo-6.18.c	2026-09-06 13:59:02
++++ module/hid-nintendo.c	2026-09-06 23:10:48
+@@ -773,13 +773,27 @@
+ 
+ static int __joycon_hid_send(struct hid_device *hdev, u8 *data, size_t len)
+ {
++	struct hid_report *report;
++	size_t send_len = len;
+ 	u8 *buf;
+ 	int ret;
+ 
+-	buf = kmemdup(data, len, GFP_KERNEL);
++	/*
++	 * Some third-party controllers ignore output reports that are shorter
++	 * than the size declared in their report descriptor. The Switch itself
++	 * always sends full-size output reports. Zero-pad to the declared size
++	 * (49 bytes over Bluetooth, 64 over USB); genuine controllers accept
++	 * both short and full-size reports.
++	 */
++	report = hdev->report_enum[HID_OUTPUT_REPORT].report_id_hash[data[0]];
++	if (report)
++		send_len = max_t(size_t, len, hid_report_len(report));
++
++	buf = kzalloc(send_len, GFP_KERNEL);
+ 	if (!buf)
+ 		return -ENOMEM;
+-	ret = hid_hw_output_report(hdev, buf, len);
++	memcpy(buf, data, len);
++	ret = hid_hw_output_report(hdev, buf, send_len);
+ 	kfree(buf);
+ 	if (ret < 0)
+ 		hid_dbg(hdev, "Failed to send output report ret=%d\n", ret);
+@@ -2458,10 +2472,13 @@
+ 	return 0;
+ }
+ 
++#define JC_INFO_RETRIES 5
++
+ static int joycon_init(struct hid_device *hdev)
+ {
+ 	struct joycon_ctlr *ctlr = hid_get_drvdata(hdev);
+ 	int ret = 0;
++	int i;
+ 
+ 	mutex_lock(&ctlr->output_mutex);
+ 	/* if handshake command fails, assume ble pro controller */
+@@ -2493,8 +2510,19 @@
+ 		goto out_unlock;
+ 	}
+ 
+-	/* needed to retrieve the controller type */
+-	ret = joycon_read_info(ctlr);
++	/*
++	 * needed to retrieve the controller type.
++	 * Some third-party controllers ignore subcommands for several seconds
++	 * after connecting (observed up to ~15 s). Each joycon_read_info() call
++	 * already tries twice with a 2 s timeout; keep retrying for a while.
++	 */
++	for (i = 0; i < JC_INFO_RETRIES; i++) {
++		ret = joycon_read_info(ctlr);
++		if (!ret)
++			break;
++		hid_dbg(hdev, "controller info attempt %d/%d failed (%d)\n",
++			i + 1, JC_INFO_RETRIES, ret);
++	}
+ 	if (ret) {
+ 		hid_err(hdev, "Failed to retrieve controller info; ret=%d\n",
+ 			ret);

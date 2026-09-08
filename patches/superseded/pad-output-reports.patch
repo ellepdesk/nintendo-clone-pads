@@ -1,0 +1,32 @@
+--- ../kernel-src/hid-nintendo-6.18.c	2026-09-06 13:59:02
++++ hid-nintendo.c	2026-09-06 21:52:56
+@@ -773,13 +773,27 @@
+ 
+ static int __joycon_hid_send(struct hid_device *hdev, u8 *data, size_t len)
+ {
++	struct hid_report *report;
++	size_t send_len = len;
+ 	u8 *buf;
+ 	int ret;
+ 
+-	buf = kmemdup(data, len, GFP_KERNEL);
++	/*
++	 * Some third-party controllers ignore output reports that are shorter
++	 * than the size declared in their report descriptor. The Switch itself
++	 * always sends full-size output reports. Zero-pad to the declared size
++	 * (49 bytes over Bluetooth, 64 over USB); genuine controllers accept
++	 * both short and full-size reports.
++	 */
++	report = hdev->report_enum[HID_OUTPUT_REPORT].report_id_hash[data[0]];
++	if (report)
++		send_len = max_t(size_t, len, hid_report_len(report));
++
++	buf = kzalloc(send_len, GFP_KERNEL);
+ 	if (!buf)
+ 		return -ENOMEM;
+-	ret = hid_hw_output_report(hdev, buf, len);
++	memcpy(buf, data, len);
++	ret = hid_hw_output_report(hdev, buf, send_len);
+ 	kfree(buf);
+ 	if (ret < 0)
+ 		hid_dbg(hdev, "Failed to send output report ret=%d\n", ret);
