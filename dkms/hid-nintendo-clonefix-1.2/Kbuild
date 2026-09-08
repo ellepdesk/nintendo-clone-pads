@@ -1,0 +1,12 @@
+obj-m := hid-nintendo.o
+# The Armbian kernel is built without CONFIG_NINTENDO_FF (no rumble). The
+# force-feedback code only needs ff-memless, which the kernel ships as a
+# module, so enable it for this out-of-tree build.
+ccflags-y += -DCONFIG_NINTENDO_FF=1
+# When built by a gcc older than the kernel's (no -fmin-function-alignment),
+# function entries may be misaligned and arm64 ftrace BUGs at module load
+# ("Misaligned patch-site"). In that case drop the ftrace patch sites entirely
+# (set by dkms-build.sh); we lose only the ability to ftrace this module.
+ifdef NO_FTRACE
+CFLAGS_REMOVE_hid-nintendo.o += $(CC_FLAGS_FTRACE)
+endif
