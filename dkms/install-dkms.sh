@@ -4,11 +4,15 @@
 # Run with sudo from ~/nintendo-clone-pads/dkms
 set -e
 NAME=hid-nintendo-clonefix; VER=1.3; SRC=/usr/src/$NAME-$VER
-rm -rf /usr/src/$NAME-1.1 /usr/src/$NAME-1.2   # stale earlier trees
 HERE=$(cd "$(dirname "$0")" && pwd)
 [ "$(id -u)" = 0 ] || { echo "run with sudo"; exit 1; }
-rm -rf "$SRC"; cp -r "$HERE/$NAME-$VER" "$SRC"
-dkms remove "$NAME/$VER" --all >/dev/null 2>&1 || true
+# Unregister every version first (dkms needs the source tree to do that),
+# then drop the old source trees; otherwise a dangling registration is left.
+for v in $(ls /var/lib/dkms/$NAME/ 2>/dev/null | grep -vE "^kernel-"); do
+    dkms remove "$NAME/$v" --all >/dev/null 2>&1 || rm -rf "/var/lib/dkms/$NAME/$v"
+done
+rm -rf /usr/src/$NAME-*
+cp -r "$HERE/$NAME-$VER" "$SRC"
 dkms add "$NAME/$VER"
 dkms build "$NAME/$VER"
 dkms install "$NAME/$VER"
