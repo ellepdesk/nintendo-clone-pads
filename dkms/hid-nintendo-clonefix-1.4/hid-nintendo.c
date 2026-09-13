@@ -1478,11 +1478,15 @@ static void joycon_parse_imu_report(struct joycon_ctlr *ctlr,
 		dropped_pkts = (delta - min(delta, dropped_threshold)) /
 				ctlr->imu_avg_delta_ms;
 		ctlr->imu_timestamp_us += 1000 * ctlr->imu_avg_delta_ms;
+		/*
+		 * Debug, not warning: controllers with a bursty report cadence
+		 * (third-party pads) trip this continuously and drown the log.
+		 */
 		if (dropped_pkts > JC_IMU_DROPPED_PKT_WARNING) {
-			hid_warn_ratelimited(ctlr->hdev,
+			hid_dbg_ratelimited(ctlr->hdev,
 				 "compensating for %u dropped IMU reports\n",
 				 dropped_pkts);
-			hid_warn_ratelimited(ctlr->hdev,
+			hid_dbg_ratelimited(ctlr->hdev,
 				 "delta=%u avg_delta=%u\n",
 				 delta, ctlr->imu_avg_delta_ms);
 		}

@@ -3,7 +3,7 @@
 # update, install it for the running kernel, and switch to it now.
 # Run with sudo from ~/nintendo-clone-pads/dkms
 set -e
-NAME=hid-nintendo-clonefix; VER=1.3; SRC=/usr/src/$NAME-$VER
+NAME=hid-nintendo-clonefix; VER=1.4; SRC=/usr/src/$NAME-$VER
 HERE=$(cd "$(dirname "$0")" && pwd)
 [ "$(id -u)" = 0 ] || { echo "run with sudo"; exit 1; }
 # Unregister every version first (dkms needs the source tree to do that),

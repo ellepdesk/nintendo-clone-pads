@@ -53,6 +53,11 @@ rumble bytes it was ignored.
   seen answering every step except that last, short-timeout one, and the
   driver threw the whole probe away (`Failed to enable rumble; ret=-110`).
 
+- `joycon_parse_imu_report()`: the rate-limited "compensating for N dropped
+  IMU reports" / "delta=..." messages become debug messages. These pads'
+  bursty report cadence trips them permanently, ~60 lines a minute, which on
+  Armbian's small RAM log partition is a real cost.
+
 Genuine controllers already receive full-size reports from the console and
 accept both forms. With the fix a cold clone probes in ~350 ms: device info,
 calibration reads, IMU enable, report mode 0x30, player LEDs; gamepad and IMU
