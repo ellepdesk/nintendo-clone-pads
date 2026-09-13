@@ -1,0 +1,4 @@
+#!/bin/sh
+# /etc/kernel/postinst.d/zz-hid-nintendo-clonefix -- re-register and build the
+# patched hid-nintendo for a newly installed kernel ($1 = kernel release).
+exec /usr/local/sbin/hid-nintendo-clonefix-ensure "$1"

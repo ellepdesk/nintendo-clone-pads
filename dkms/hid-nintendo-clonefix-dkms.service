@@ -1,0 +1,14 @@
+[Unit]
+Description=Build the patched hid-nintendo (DKMS) for the running kernel if missing
+DefaultDependencies=no
+After=local-fs.target systemd-modules-load.service
+Before=bluetooth.service
+ConditionPathExists=!/lib/modules/%v/updates/dkms/hid-nintendo.ko
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/hid-nintendo-clonefix-ensure
+TimeoutStartSec=10min
+
+[Install]
+WantedBy=multi-user.target

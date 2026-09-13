@@ -1,0 +1,27 @@
+#!/bin/sh
+# Make sure the patched hid-nintendo is registered with DKMS and built for a
+# kernel. Usage: hid-nintendo-clonefix-ensure [kernel-release]
+#
+# Why: Armbian ships the kernel under one package name, so an upgrade removes
+# the old kernel before the new one is configured. DKMS's kernel prerm hook
+# then removes the module's only build and, being the last one, drops the
+# module from the DKMS tree entirely; the new kernel's autoinstall finds
+# nothing to build. Re-add if needed and (re)build.
+NAME=hid-nintendo-clonefix
+VER=$(ls -d /usr/src/${NAME}-* 2>/dev/null | sed "s#.*/${NAME}-##" | sort -V | tail -1)
+K="${1:-$(uname -r)}"
+[ -n "$VER" ] || { echo "$0: no /usr/src/${NAME}-<version> tree"; exit 0; }
+if [ -e "/lib/modules/$K/updates/dkms/hid-nintendo.ko" ]; then
+	exit 0
+fi
+if [ ! -d "/lib/modules/$K/build" ]; then
+	echo "$0: no kernel headers for $K yet; the headers post-install hook will retry"
+	exit 0
+fi
+dkms status -m "$NAME" -v "$VER" | grep -q . || dkms add "$NAME/$VER"
+dkms install "$NAME/$VER" -k "$K" || exit 1
+depmod -a "$K"
+if [ "$K" = "$(uname -r)" ]; then
+	rmmod hid_nintendo 2>/dev/null || true
+	modprobe hid_nintendo
+fi

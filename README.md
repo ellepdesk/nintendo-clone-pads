@@ -70,6 +70,23 @@ The DKMS tree (`dkms/hid-nintendo-clonefix-<version>/`) installs to
 module. `Kbuild` adds `-DCONFIG_NINTENDO_FF=1` so rumble is available even on
 kernels built without it (needs `ff-memless`, which most distro kernels ship).
 
+### In-place kernel upgrades (Armbian)
+
+Armbian ships the kernel under a single package name, so an upgrade removes
+the old kernel before the new one is configured. DKMS's kernel prerm hook then
+removes the module's only build and, as it was the last one, drops the module
+from the DKMS tree entirely, so the new kernel's `dkms autoinstall` has nothing
+to build and the stock driver comes back after the next reboot (observed with
+6.18.48 -> 6.18.49). `install-dkms.sh` therefore also installs:
+
+- `/usr/local/sbin/hid-nintendo-clonefix-ensure`: re-adds the module to DKMS
+  if it went missing and builds/installs it for a given kernel;
+- `/etc/kernel/postinst.d/zz-hid-nintendo-clonefix`: runs it for every newly
+  installed kernel (the headers post-install hook retries if headers arrive
+  later);
+- `hid-nintendo-clonefix-dkms.service`: at boot, if the running kernel has no
+  built module, builds and loads it before `bluetooth.service` starts.
+
 ### Compiler mismatch (Armbian, arm64)
 
 The target kernel was built with gcc 14 while the distro's default gcc is 13,
