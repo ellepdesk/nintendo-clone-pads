@@ -1321,7 +1321,12 @@ static int joycon_enable_rumble(struct joycon_ctlr *ctlr)
 	req->data[0] = 0x01; /* note: 0x00 would disable */
 
 	hid_dbg(ctlr->hdev, "enabling rumble\n");
-	return joycon_send_subcmd(ctlr, req, 1, HZ/4);
+	/*
+	 * HZ/4 is enough for a genuine controller but some clones answer
+	 * slowly right after (re)connecting; use the same timeout as the
+	 * other init subcommands.
+	 */
+	return joycon_send_subcmd(ctlr, req, 1, HZ);
 }
 
 static int joycon_enable_imu(struct joycon_ctlr *ctlr)
@@ -2546,8 +2551,12 @@ static int joycon_init(struct hid_device *hdev)
 		/* Enable the IMU */
 		ret = joycon_enable_imu(ctlr);
 		if (ret) {
-			hid_err(hdev, "Failed to enable the IMU; ret=%d\n", ret);
-			goto out_unlock;
+			/*
+			 * Not fatal: the controller is fully usable without
+			 * motion data (some clones answer late or not at all).
+			 */
+			hid_warn(hdev, "Failed to enable the IMU, continuing without it; ret=%d\n", ret);
+			ret = 0;
 		}
 	}
 
@@ -2562,8 +2571,13 @@ static int joycon_init(struct hid_device *hdev)
 		/* Enable rumble */
 		ret = joycon_enable_rumble(ctlr);
 		if (ret) {
-			hid_err(hdev, "Failed to enable rumble; ret=%d\n", ret);
-			goto out_unlock;
+			/*
+			 * Not fatal either: better a working pad without rumble
+			 * than a failed probe (seen on clones reconnecting during
+			 * play, where every other step had already succeeded).
+			 */
+			hid_warn(hdev, "Failed to enable rumble, continuing without it; ret=%d\n", ret);
+			ret = 0;
 		}
 	}
 

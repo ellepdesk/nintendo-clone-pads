@@ -38,7 +38,7 @@ rumble bytes it was ignored.
 
 ## Fix
 
-`patches/pad-and-neutral-rumble.patch` (two hunks against
+`patches/pad-and-neutral-rumble.patch` (against
 `kernel-src/hid-nintendo-6.18.c`, also applies to mainline):
 
 - `__joycon_hid_send()`: zero-pad every output report to `hid_report_len()` of
@@ -46,6 +46,12 @@ rumble bytes it was ignored.
 - `nintendo_hid_probe()`: preload the rumble queue with the neutral pattern,
   which is what `joycon_encode_rumble()` produces for 160/320 Hz at
   amplitude 0.
+
+- `joycon_init()`: a failed IMU-enable or rumble-enable is a warning, not a
+  probe failure, and rumble-enable gets the same 1 s timeout as the other
+  init subcommands instead of 250 ms. A clone reconnecting during play was
+  seen answering every step except that last, short-timeout one, and the
+  driver threw the whole probe away (`Failed to enable rumble; ret=-110`).
 
 Genuine controllers already receive full-size reports from the console and
 accept both forms. With the fix a cold clone probes in ~350 ms: device info,

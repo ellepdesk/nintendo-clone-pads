@@ -3,8 +3,8 @@
 # update, install it for the running kernel, and switch to it now.
 # Run with sudo from ~/nintendo-clone-pads/dkms
 set -e
-NAME=hid-nintendo-clonefix; VER=1.2; SRC=/usr/src/$NAME-$VER
-rm -rf /usr/src/$NAME-1.1   # stale earlier tree, if present
+NAME=hid-nintendo-clonefix; VER=1.3; SRC=/usr/src/$NAME-$VER
+rm -rf /usr/src/$NAME-1.1 /usr/src/$NAME-1.2   # stale earlier trees
 HERE=$(cd "$(dirname "$0")" && pwd)
 [ "$(id -u)" = 0 ] || { echo "run with sudo"; exit 1; }
 rm -rf "$SRC"; cp -r "$HERE/$NAME-$VER" "$SRC"

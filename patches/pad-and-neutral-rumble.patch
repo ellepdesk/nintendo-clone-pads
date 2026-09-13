@@ -1,15 +1,14 @@
 --- kernel-src/hid-nintendo-6.18.c	2026-09-06 13:59:02
-+++ module/hid-nintendo.c	2026-09-07 09:24:22
-@@ -542,7 +542,13 @@
- #define JC_MAX_RESP_SIZE	(sizeof(struct joycon_input_report) + 35)
++++ module/hid-nintendo.c	2026-09-13 19:15:45
+@@ -543,6 +543,12 @@
  #define JC_RUMBLE_DATA_SIZE	8
  #define JC_RUMBLE_QUEUE_SIZE	8
-+
+ 
 +/* neutral rumble ("off") as sent by the console: freq 160/320 Hz, amp 0 */
 +static const u8 joycon_rumble_neutral[JC_RUMBLE_DATA_SIZE] = {
 +	0x00, 0x01, 0x40, 0x40, 0x00, 0x01, 0x40, 0x40
 +};
- 
++
 +
  static const char * const joycon_player_led_names[] = {
  	LED_FUNCTION_PLAYER1,
@@ -43,7 +42,52 @@
  	kfree(buf);
  	if (ret < 0)
  		hid_dbg(hdev, "Failed to send output report ret=%d\n", ret);
-@@ -2629,6 +2648,7 @@
+@@ -1302,7 +1321,12 @@
+ 	req->data[0] = 0x01; /* note: 0x00 would disable */
+ 
+ 	hid_dbg(ctlr->hdev, "enabling rumble\n");
+-	return joycon_send_subcmd(ctlr, req, 1, HZ/4);
++	/*
++	 * HZ/4 is enough for a genuine controller but some clones answer
++	 * slowly right after (re)connecting; use the same timeout as the
++	 * other init subcommands.
++	 */
++	return joycon_send_subcmd(ctlr, req, 1, HZ);
+ }
+ 
+ static int joycon_enable_imu(struct joycon_ctlr *ctlr)
+@@ -2527,8 +2551,12 @@
+ 		/* Enable the IMU */
+ 		ret = joycon_enable_imu(ctlr);
+ 		if (ret) {
+-			hid_err(hdev, "Failed to enable the IMU; ret=%d\n", ret);
+-			goto out_unlock;
++			/*
++			 * Not fatal: the controller is fully usable without
++			 * motion data (some clones answer late or not at all).
++			 */
++			hid_warn(hdev, "Failed to enable the IMU, continuing without it; ret=%d\n", ret);
++			ret = 0;
+ 		}
+ 	}
+ 
+@@ -2543,8 +2571,13 @@
+ 		/* Enable rumble */
+ 		ret = joycon_enable_rumble(ctlr);
+ 		if (ret) {
+-			hid_err(hdev, "Failed to enable rumble; ret=%d\n", ret);
+-			goto out_unlock;
++			/*
++			 * Not fatal either: better a working pad without rumble
++			 * than a failed probe (seen on clones reconnecting during
++			 * play, where every other step had already succeeded).
++			 */
++			hid_warn(hdev, "Failed to enable rumble, continuing without it; ret=%d\n", ret);
++			ret = 0;
+ 		}
+ 	}
+ 
+@@ -2629,6 +2662,7 @@
  			    const struct hid_device_id *id)
  {
  	int ret;
@@ -51,7 +95,7 @@
  	struct joycon_ctlr *ctlr;
  
  	hid_dbg(hdev, "probe - start\n");
-@@ -2643,6 +2663,16 @@
+@@ -2643,6 +2677,16 @@
  	ctlr->ctlr_state = JOYCON_CTLR_STATE_INIT;
  	ctlr->rumble_queue_head = 0;
  	ctlr->rumble_queue_tail = 0;
